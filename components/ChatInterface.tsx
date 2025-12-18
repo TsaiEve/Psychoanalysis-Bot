@@ -46,7 +46,6 @@ const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
 };
 
 const ChatInterface: React.FC = () => {
-  const [chat, setChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [userInput, setUserInput] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -54,34 +53,14 @@ const ChatInterface: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState<{data: string, mimeType: string} | null>(null);
   
+  // 使用 Ref 保持 chat 實例，避免重複創建與 state 更新競爭
+  const chatRef = useRef<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // 初始化 Chat 的函數
-  const initChat = () => {
-    try {
-      const apiKey = process.env.API_KEY || '';
-      if (apiKey) {
-        const ai = new GoogleGenAI({ apiKey });
-        const chatSession = ai.chats.create({
-          model: 'gemini-3-flash-preview',
-          config: { systemInstruction: KENYU_SYSTEM_INSTRUCTION },
-        });
-        setChat(chatSession);
-        return chatSession;
-      }
-    } catch (e) {
-      console.error("Chat Init Error:", e);
-    }
-    return null;
-  };
-
-  useEffect(() => {
-    initChat();
-  }, []);
-
+  // 滾動到底部
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
@@ -128,42 +107,41 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
-    if (e) e.preventDefault();
-    
-    // 確保有輸入內容且不在載入中
+  const handleSend = async () => {
     const trimmedInput = userInput.trim();
-    const hasAnyInput = trimmedInput.length > 0 || selectedImage !== null || recordedAudio !== null;
-    
-    if (isLoading || !hasAnyInput) return;
+    if (isLoading || (!trimmedInput && !selectedImage && !recordedAudio)) return;
 
-    // 如果 chat 為空，嘗試再次初始化
-    let currentChat = chat;
-    if (!currentChat) {
-      currentChat = initChat();
-    }
-    if (!currentChat) {
-        console.error("Chat session could not be initialized.");
+    // 確保 Chat 實例存在
+    if (!chatRef.current) {
+      try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        chatRef.current = ai.chats.create({
+          model: 'gemini-3-flash-preview',
+          config: { systemInstruction: KENYU_SYSTEM_INSTRUCTION },
+        });
+      } catch (e) {
+        console.error("Failed to init chat:", e);
         return;
+      }
     }
 
-    const displayInput = trimmedInput || (selectedImage ? "[Sent an image]" : "[Sent a voice note]");
-    const userMsg = { role: Role.USER, content: displayInput };
-    
-    setMessages(prev => [...prev, userMsg]);
+    const currentChat = chatRef.current;
+    if (!currentChat) return;
+
+    // 更新介面
+    const content = trimmedInput || (selectedImage ? "[Sent an image]" : "[Sent a voice note]");
+    setMessages(prev => [...prev, { role: Role.USER, content }]);
     setIsLoading(true);
     
-    // 清除輸入
+    // 清空輸入框
+    const messageToSend = trimmedInput || "User shared a visual or auditory reflection. Provide insight.";
     setUserInput('');
     setSelectedImage(null);
     setRecordedAudio(null);
     if(textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
-      const responseStream = await currentChat.sendMessageStream({ 
-        message: trimmedInput || "User shared an image or voice reflection. Please provide psychoanalytic insight." 
-      });
-      
+      const responseStream = await currentChat.sendMessageStream({ message: messageToSend });
       let fullText = '';
       let isFirst = true;
 
@@ -184,19 +162,19 @@ const ChatInterface: React.FC = () => {
       }
     } catch (error) {
       console.error(error);
-      setIsLoading(false);
-      setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded. Could you try sharing that again? / 我的思緒有些模糊，能請您再試一次嗎？" }]);
+      setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded. Try again? / 我的思緒有些模糊，請再說一次？" }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // 檢查 Ctrl + Enter 或 Cmd + Enter (Mac)
+    // 支援 Ctrl + Enter 或 Cmd + Enter
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      handleSubmit();
+      handleSend();
     }
+    // 單獨 Enter 會正常換行
   };
 
   return (
@@ -208,15 +186,15 @@ const ChatInterface: React.FC = () => {
 
       <main className="flex-1 px-4 lg:px-12 py-6 overflow-y-auto space-y-6 white-scrollbar">
         {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-stone-400 space-y-4 opacity-60">
-                <p className="text-lg italic font-script">"The unexamined life is not worth living."</p>
-                <p className="text-sm">Speak freely, I am here to listen. / 隨意傾訴，我正在傾聽。</p>
+            <div className="h-full flex flex-col items-center justify-center text-stone-400/60 space-y-4">
+                <p className="text-lg italic font-script">"Everything is but a dream, if not analyzed."</p>
+                <p className="text-sm tracking-widest uppercase font-bold">Speak freely / 隨意傾訴</p>
             </div>
         )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="px-6 py-4 rounded-[2rem] bg-white/80 border border-rose-100/50 flex space-x-2">
+            <div className="px-6 py-4 rounded-[2rem] bg-white/80 border border-rose-100/50 flex space-x-2 shadow-sm">
               <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce"></span>
               <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
               <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -231,7 +209,7 @@ const ChatInterface: React.FC = () => {
           <div className="mb-4 flex gap-4 animate-in slide-in-from-bottom-2">
             {selectedImage && (
               <div className="relative group">
-                <div className="h-16 w-16 overflow-hidden rounded-xl border-2 border-rose-200 shadow-md">
+                <div className="h-16 w-16 overflow-hidden rounded-xl border-2 border-rose-200 shadow-md transition-transform group-hover:scale-105">
                     <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Preview" />
                 </div>
                 <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg hover:bg-rose-600 transition-colors">
@@ -240,7 +218,7 @@ const ChatInterface: React.FC = () => {
               </div>
             )}
             {recordedAudio && (
-              <div className="relative flex items-center bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 shadow-sm">
+              <div className="relative flex items-center bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 shadow-sm animate-pulse">
                 <MicIcon className="h-4 w-4 text-rose-500 mr-2" />
                 <span className="text-xs text-rose-700 font-medium">Voice Captured</span>
                 <button onClick={() => setRecordedAudio(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg hover:bg-rose-600 transition-colors">
@@ -251,9 +229,9 @@ const ChatInterface: React.FC = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
+        <div className="relative flex items-end gap-2">
           <div className="flex flex-col gap-2">
-             <label className="cursor-pointer bg-white/60 p-3 rounded-full border border-rose-100/50 hover:bg-rose-50 shadow-sm transition-all active:scale-90">
+             <label className="cursor-pointer bg-white/60 p-3 rounded-full border border-rose-100/50 hover:bg-rose-50 shadow-sm transition-all active:scale-95">
                 <PaperclipIcon className="h-5 w-5 text-rose-400" />
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
              </label>
@@ -263,7 +241,7 @@ const ChatInterface: React.FC = () => {
                 onMouseUp={stopRecording} 
                 onTouchStart={startRecording} 
                 onTouchEnd={stopRecording} 
-                className={`p-3 rounded-full border border-rose-100/50 shadow-sm transition-all active:scale-90 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/60 text-rose-400'}`}
+                className={`p-3 rounded-full border border-rose-100/50 shadow-sm transition-all active:scale-95 ${isRecording ? 'bg-rose-500 text-white' : 'bg-white/60 text-rose-400'}`}
              >
                 <MicIcon className="h-5 w-5" />
               </button>
@@ -279,21 +257,21 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type thoughts... (Ctrl + Enter to send)"
+              placeholder="Tell me more... (Ctrl + Enter to send)"
               className="w-full pl-6 pr-14 py-4 bg-white/60 text-stone-800 border border-rose-100/50 rounded-[1.5rem] resize-none focus:outline-none focus:border-rose-300 transition-all shadow-inner max-h-40 overflow-y-auto white-scrollbar leading-relaxed"
               rows={1}
             />
             <button 
-              type="submit" 
+              onClick={handleSend}
               disabled={isLoading || (!userInput.trim() && !selectedImage && !recordedAudio)} 
-              className="absolute right-2 bottom-2 bg-rose-500 text-white rounded-full h-11 w-11 flex items-center justify-center hover:bg-rose-600 disabled:opacity-30 disabled:scale-100 active:scale-90 transition-all shadow-md"
+              className="absolute right-2 bottom-2 bg-rose-500 text-white rounded-full h-11 w-11 flex items-center justify-center hover:bg-rose-600 disabled:opacity-20 disabled:scale-100 active:scale-90 transition-all shadow-md z-10"
             >
               <SendIcon className="h-5 w-5" />
             </button>
           </div>
-        </form>
-        <div className="mt-2 text-[0.65rem] text-stone-400 text-center uppercase tracking-widest font-bold">
-            Ctrl + Enter to send / 按下 Ctrl + Enter 發送
+        </div>
+        <div className="mt-3 text-[0.6rem] text-stone-400 text-center uppercase tracking-widest font-bold opacity-60">
+            Hold to record • Ctrl + Enter to send
         </div>
       </footer>
     </div>
