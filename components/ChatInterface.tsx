@@ -54,7 +54,7 @@ const ChatInterface: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState<{data: string, mimeType: string} | null>(null);
   
-  const historyRef = useRef<any[]>([]);
+  const historyRef = useRef<{ role: 'user' | 'model'; parts: { text?: string; inlineData?: any }[] }[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -83,7 +83,7 @@ const ChatInterface: React.FC = () => {
         console.error("Image error:", err);
       }
     }
-    e.target.value = ''; // Reset for re-selection
+    e.target.value = '';
   };
 
   const startRecording = async () => {
@@ -104,8 +104,8 @@ const ChatInterface: React.FC = () => {
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) { 
-      console.error("Mic access error:", err);
-      alert("無法啟動麥克風，請檢查權限設定。");
+      console.error("Mic error:", err);
+      alert("Microphone access denied or not found.");
     }
   };
 
@@ -125,18 +125,25 @@ const ChatInterface: React.FC = () => {
 
     setIsLoading(true);
 
-    // 介面立即顯示用戶訊息
-    const displayMsg = trimmedInput || (hasImage ? "[Image shared]" : "[Voice note shared]");
+    // Simple language detection for error messaging
+    const isChinese = /[\u4e00-\u9fa5]/.test(trimmedInput);
+    const getErrorMessage = () => isChinese 
+      ? "抱歉，我目前的思緒有些模糊，無法深入分析。請您再試一次。" 
+      : "I'm sorry, my insight is a bit clouded at the moment. Please try sharing that again.";
+
+    // Display user message immediately
+    const displayMsg = trimmedInput || (hasImage ? "[Image reflection]" : "[Voice reflection]");
     setMessages(prev => [...prev, { role: Role.USER, content: displayMsg }]);
 
-    // 準備發送給 Gemini 的零件
+    // Prepare parts
     const parts: any[] = [];
     if (trimmedInput) parts.push({ text: trimmedInput });
     if (selectedImage) parts.push({ inlineData: { data: selectedImage.data, mimeType: selectedImage.mimeType } });
     if (recordedAudio) parts.push({ inlineData: { data: recordedAudio.data, mimeType: recordedAudio.mimeType } });
 
-    // 暫存並清空輸入狀態
     const currentParts = [...parts];
+    
+    // Clear inputs
     setUserInput('');
     setSelectedImage(null);
     setRecordedAudio(null);
@@ -159,15 +166,15 @@ const ChatInterface: React.FC = () => {
       });
 
       let fullText = '';
-      let isFirst = true;
+      let isFirstChunk = true;
 
       for await (const chunk of responseStream) {
         const chunkText = chunk.text || "";
         fullText += chunkText;
         
-        if (isFirst) {
+        if (isFirstChunk) {
           setIsLoading(false);
-          isFirst = false;
+          isFirstChunk = false;
           setMessages(prev => [...prev, { role: Role.MODEL, content: fullText }]);
         } else {
           setMessages(prev => {
@@ -181,18 +188,18 @@ const ChatInterface: React.FC = () => {
         }
       }
 
-      // 更新歷史紀錄
+      // Record history
       historyRef.current = [
         ...contents,
         { role: 'model', parts: [{ text: fullText }] }
       ];
 
     } catch (error) {
-      console.error("API Call Error:", error);
+      console.error("Therapist API Error:", error);
       setIsLoading(false);
       setMessages(prev => [...prev, { 
         role: Role.MODEL, 
-        content: "I'm sorry, I couldn't process that insight right now. Could you share your thoughts again? / 抱歉，我現在無法解析您的思緒。能請您再試一次嗎？" 
+        content: getErrorMessage()
       }]);
     } finally {
       setIsLoading(false);
@@ -212,15 +219,15 @@ const ChatInterface: React.FC = () => {
     <div className="flex flex-col h-[90vh] w-full max-w-4xl bg-white/40 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_30px_70px_-15px_rgba(251,113,133,0.3)] border border-white/60 overflow-hidden relative">
       <header className="px-8 py-7 text-center border-b border-rose-100/30 bg-white/20 backdrop-blur-md">
         <h1 className="text-3xl font-script font-bold text-rose-600/90 tracking-wide">I'll understand you</h1>
-        <p className="text-stone-500 text-[0.65rem] mt-2 font-bold tracking-[0.35em] uppercase opacity-70">Deep Psychoanalytic Reflection</p>
+        <p className="text-stone-500 text-[0.65rem] mt-2 font-bold tracking-[0.35em] uppercase opacity-70">Psychoanalytic Interpretation</p>
       </header>
 
       <main className="flex-1 px-6 lg:px-14 py-8 overflow-y-auto space-y-7 white-scrollbar">
         {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-stone-400/40 space-y-5 animate-pulse">
-                <div className="w-14 h-14 rounded-full border border-stone-200/40 flex items-center justify-center italic text-xl font-script">ψ</div>
-                <p className="text-lg italic font-script text-center max-w-xs">"Thoughts are but seeds of the unspoken."</p>
-                <p className="text-[0.6rem] tracking-[0.4em] uppercase font-black">Begin your story / 開始傾訴</p>
+            <div className="h-full flex flex-col items-center justify-center text-stone-400/40 space-y-5">
+                <div className="w-14 h-14 rounded-full border border-stone-200/40 flex items-center justify-center italic text-xl font-script opacity-60">ψ</div>
+                <p className="text-lg italic font-script text-center max-w-xs">"Unexpressed emotions will never die."</p>
+                <p className="text-[0.6rem] tracking-[0.4em] uppercase font-black opacity-50">Speak freely / 開始傾訴</p>
             </div>
         )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
@@ -242,7 +249,7 @@ const ChatInterface: React.FC = () => {
             {selectedImage && (
               <div className="relative group">
                 <div className="h-20 w-20 overflow-hidden rounded-2xl border-2 border-white shadow-lg transition-transform hover:scale-105">
-                    <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Selected" />
+                    <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="User Upload" />
                 </div>
                 <button onClick={() => setSelectedImage(null)} className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 active:scale-90 transition-all">
                   <XIcon className="h-3 w-3" />
@@ -252,7 +259,7 @@ const ChatInterface: React.FC = () => {
             {recordedAudio && (
               <div className="relative flex items-center bg-white/80 px-5 py-3 rounded-2xl border border-rose-50 shadow-lg animate-pulse">
                 <MicIcon className="h-4 w-4 text-rose-500 mr-2.5" />
-                <span className="text-xs text-rose-700 font-bold uppercase tracking-widest">Audio Loaded</span>
+                <span className="text-xs text-rose-700 font-bold uppercase tracking-widest">Voice Ready</span>
                 <button onClick={() => setRecordedAudio(null)} className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 active:scale-90 transition-all">
                   <XIcon className="h-3 w-3" />
                 </button>
@@ -274,6 +281,7 @@ const ChatInterface: React.FC = () => {
                 onTouchStart={startRecording} 
                 onTouchEnd={stopRecording} 
                 className={`p-3.5 rounded-full border border-rose-100/40 shadow-sm transition-all active:scale-90 ${isRecording ? 'bg-rose-500 text-white ring-4 ring-rose-100' : 'bg-white/70 text-rose-400 hover:bg-white'}`}
+                title="Hold to record"
              >
                 <MicIcon className="h-5 w-5" />
               </button>
@@ -289,7 +297,7 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Speak your mind... (Ctrl+Enter to send)"
+              placeholder="What comes to mind? (Ctrl+Enter to send)"
               className="w-full pl-6 pr-16 py-4.5 bg-white/80 text-stone-800 border border-rose-100/20 rounded-[1.8rem] resize-none focus:outline-none focus:ring-4 focus:ring-rose-100/30 focus:border-rose-200 transition-all shadow-inner max-h-44 overflow-y-auto white-scrollbar leading-relaxed text-[1.05rem]"
               rows={1}
             />
@@ -303,12 +311,8 @@ const ChatInterface: React.FC = () => {
           </div>
         </div>
         <div className="mt-4 flex justify-between items-center px-4 opacity-40">
-           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">
-              Hold to record voice
-           </div>
-           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">
-              Ctrl + Enter to send
-           </div>
+           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">Hold mic to record</div>
+           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">Ctrl + Enter to send</div>
         </div>
       </footer>
     </div>
