@@ -62,7 +62,7 @@ const ChatInterface: React.FC = () => {
   // 初始化 Chat
   useEffect(() => {
     try {
-      const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : '';
+      const apiKey = process.env.API_KEY || '';
       if (apiKey) {
         const ai = new GoogleGenAI({ apiKey });
         const chatSession = ai.chats.create({
@@ -122,12 +122,19 @@ const ChatInterface: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: any) => {
-    e.preventDefault();
-    if (!chat || isLoading || (!userInput.trim() && !selectedImage && !recordedAudio)) return;
+  const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
+    if (e) e.preventDefault();
+    
+    // 只要有文字或圖片或語音，且不在載入中，且聊天已初始化
+    const hasInput = userInput.trim().length > 0 || selectedImage !== null || recordedAudio !== null;
+    if (!chat || isLoading || !hasInput) return;
 
     const input = userInput.trim();
-    const userMsg = { role: Role.USER, content: input || "[Sent Attachments]" };
+    const userMsg = { 
+      role: Role.USER, 
+      content: input || (selectedImage ? "[Sent an image]" : "[Sent a voice note]") 
+    };
+    
     setMessages(prev => [...prev, userMsg]);
     
     setUserInput('');
@@ -137,7 +144,7 @@ const ChatInterface: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const responseStream = await chat.sendMessageStream({ message: input || "User shared an image/audio." });
+      const responseStream = await chat.sendMessageStream({ message: input || "User shared a visual or auditory reflection. Please interpret." });
       let fullText = '';
       let isFirst = true;
 
@@ -159,7 +166,15 @@ const ChatInterface: React.FC = () => {
     } catch (error) {
       console.error(error);
       setIsLoading(false);
-      setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded. Try again? / 我的思緒有些模糊，請再說一次？" }]);
+      setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded. Could you try sharing that again? / 我的思緒有些模糊，能請您再試一次嗎？" }]);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // 檢查 Ctrl + Enter
+    if (e.key === 'Enter' && e.ctrlKey) {
+      e.preventDefault();
+      handleSubmit();
     }
   };
 
@@ -171,6 +186,12 @@ const ChatInterface: React.FC = () => {
       </header>
 
       <main className="flex-1 px-4 lg:px-12 py-6 overflow-y-auto space-y-6 white-scrollbar">
+        {messages.length === 0 && (
+            <div className="h-full flex flex-col items-center justify-center text-stone-400 space-y-4 opacity-60">
+                <p className="text-lg italic font-script">"The unexamined life is not worth living."</p>
+                <p className="text-sm">Speak freely, I am here to listen. / 隨意傾訴，我正在傾聽。</p>
+            </div>
+        )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
         {isLoading && (
           <div className="flex justify-start">
@@ -185,13 +206,44 @@ const ChatInterface: React.FC = () => {
       </main>
 
       <footer className="p-6 lg:px-12 lg:pb-10 bg-white/20">
+         {(selectedImage || recordedAudio) && (
+          <div className="mb-4 flex gap-4 animate-in slide-in-from-bottom-2">
+            {selectedImage && (
+              <div className="relative group">
+                <div className="h-16 w-16 overflow-hidden rounded-xl border-2 border-rose-200 shadow-md">
+                    <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Preview" />
+                </div>
+                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg hover:bg-rose-600 transition-colors">
+                  <XIcon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+            {recordedAudio && (
+              <div className="relative flex items-center bg-rose-50 px-4 py-2 rounded-xl border border-rose-100 shadow-sm">
+                <MicIcon className="h-4 w-4 text-rose-500 mr-2" />
+                <span className="text-xs text-rose-700 font-medium">Voice Captured</span>
+                <button onClick={() => setRecordedAudio(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1 shadow-lg hover:bg-rose-600 transition-colors">
+                  <XIcon className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="relative flex items-end gap-2">
           <div className="flex flex-col gap-2">
-             <label className="cursor-pointer bg-white/60 p-3 rounded-full border border-rose-100/50 hover:bg-rose-50 shadow-sm">
+             <label className="cursor-pointer bg-white/60 p-3 rounded-full border border-rose-100/50 hover:bg-rose-50 shadow-sm transition-all active:scale-90">
                 <PaperclipIcon className="h-5 w-5 text-rose-400" />
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
              </label>
-             <button type="button" onMouseDown={startRecording} onMouseUp={stopRecording} onTouchStart={startRecording} onTouchEnd={stopRecording} className={`p-3 rounded-full border border-rose-100/50 shadow-sm ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/60 text-rose-400'}`}>
+             <button 
+                type="button" 
+                onMouseDown={startRecording} 
+                onMouseUp={stopRecording} 
+                onTouchStart={startRecording} 
+                onTouchEnd={stopRecording} 
+                className={`p-3 rounded-full border border-rose-100/50 shadow-sm transition-all active:scale-90 ${isRecording ? 'bg-rose-500 text-white animate-pulse' : 'bg-white/60 text-rose-400'}`}
+             >
                 <MicIcon className="h-5 w-5" />
               </button>
           </div>
@@ -205,16 +257,23 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = 'auto';
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit(e)}
-              placeholder="Share your thoughts... / 分享您的想法..."
-              className="w-full pl-6 pr-14 py-4 bg-white/60 text-stone-800 border border-rose-100/50 rounded-[1.5rem] resize-none focus:outline-none transition-all shadow-inner max-h-40 overflow-y-auto white-scrollbar leading-relaxed"
+              onKeyDown={handleKeyDown}
+              placeholder="Type or share... (Ctrl + Enter to send)"
+              className="w-full pl-6 pr-14 py-4 bg-white/60 text-stone-800 border border-rose-100/50 rounded-[1.5rem] resize-none focus:outline-none focus:border-rose-300 transition-all shadow-inner max-h-40 overflow-y-auto white-scrollbar leading-relaxed"
               rows={1}
             />
-            <button type="submit" disabled={isLoading} className="absolute right-2 bottom-2 bg-rose-500 text-white rounded-full h-11 w-11 flex items-center justify-center hover:bg-rose-600 disabled:opacity-30 shadow-md">
+            <button 
+              type="submit" 
+              disabled={isLoading || !chat || (userInput.trim().length === 0 && !selectedImage && !recordedAudio)} 
+              className="absolute right-2 bottom-2 bg-rose-500 text-white rounded-full h-11 w-11 flex items-center justify-center hover:bg-rose-600 disabled:opacity-30 disabled:scale-100 active:scale-90 transition-all shadow-md"
+            >
               <SendIcon className="h-5 w-5" />
             </button>
           </div>
         </form>
+        <div className="mt-2 text-[0.65rem] text-stone-400 text-center uppercase tracking-widest font-bold">
+            Ctrl + Enter to send / 按下 Ctrl + Enter 發送
+        </div>
       </footer>
     </div>
   );
