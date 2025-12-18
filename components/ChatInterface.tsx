@@ -4,21 +4,21 @@ import { GoogleGenAI, HarmCategory, HarmBlockThreshold, type Content, type Part 
 import { KENYU_SYSTEM_INSTRUCTION } from '../constants.ts';
 import { Role, type Message } from '../types.ts';
 
-// --- Ultra High-Contrast Bold Icons (Pure Black) ---
+// --- Elegant Clinical Icons (Muted Charcoal) ---
 const SendIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
   </svg>
 );
 
 const PaperclipIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />
   </svg>
 );
 
 const MicIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
     <line x1="12" y1="19" x2="12" y2="23" />
@@ -27,7 +27,7 @@ const MicIcon = ({ className }: { className?: string }) => (
 );
 
 const XIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18" />
     <line x1="6" y1="6" x2="18" y2="18" />
   </svg>
@@ -36,13 +36,13 @@ const XIcon = ({ className }: { className?: string }) => (
 const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
   const isUser = message.role === Role.USER;
   return (
-    <div className={`flex w-full mb-10 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-4 duration-200`}>
-      <div className={`max-w-[85%] md:max-w-[70%] px-8 py-6 rounded-[2.5rem] shadow-2xl border-2 ${
+    <div className={`flex w-full mb-8 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in duration-500`}>
+      <div className={`max-w-[85%] md:max-w-[75%] px-7 py-5 rounded-3xl shadow-sm border ${
         isUser 
-          ? 'bg-[#e11d48] text-white border-[#be123c] rounded-br-none' 
-          : 'bg-white text-black border-stone-200 rounded-bl-none'
+          ? 'bg-rose-500 text-white border-rose-600 rounded-br-none' 
+          : 'bg-white text-stone-800 border-stone-100 rounded-bl-none'
       }`}>
-        <p className="whitespace-pre-wrap leading-relaxed text-[1.2rem] font-bold">{message.content}</p>
+        <p className="whitespace-pre-wrap leading-relaxed text-[1.1rem] font-medium tracking-tight">{message.content}</p>
       </div>
     </div>
   );
@@ -105,7 +105,7 @@ const ChatInterface: React.FC = () => {
       };
       mediaRecorder.start();
       setIsRecording(true);
-    } catch (err) { alert("Mic required / 需麥克風權限"); }
+    } catch (err) { alert("Microphone access denied / 需麥克風權限"); }
   };
 
   const stopRecording = () => {
@@ -122,7 +122,7 @@ const ChatInterface: React.FC = () => {
     const lang = detectLanguage(trimmed || "");
     setIsLoading(true);
 
-    const displayContent = trimmed || (selectedImage ? "[Image]" : "[Voice]");
+    const displayContent = trimmed || (selectedImage ? "[分享了意象]" : "[分享了語音]");
     setMessages(prev => [...prev, { role: Role.USER, content: displayContent }]);
 
     const parts: Part[] = [];
@@ -140,8 +140,9 @@ const ChatInterface: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const contents = [...historyRef.current, { role: 'user', parts: currentParts }];
 
+      // 使用穩定性更高的 Pro 模型並降低過濾門檻
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents,
         config: { 
           systemInstruction: KENYU_SYSTEM_INSTRUCTION,
@@ -179,16 +180,16 @@ const ChatInterface: React.FC = () => {
       if (fullText) {
         historyRef.current = [...contents, { role: 'model', parts: [{ text: fullText }] }];
       } else {
-        throw new Error("Empty AI Response");
+        throw new Error("No usable output");
       }
     } catch (error) {
-      console.error("Critical Analysis Error:", error);
+      console.error("Critical Failure:", error);
       setIsLoading(false);
-      // 修復：不再「通靈」說用戶生氣，改為誠實的連線錯誤訊息
-      const errorText = lang === 'zh' 
-        ? "抱歉，連線發生了技術故障。這可能阻礙了我們對潛意識的深入觀察，請您再試一次。" 
-        : "The analytical channel has been interrupted by a technical error. Please try repeating yourself.";
-      setMessages(prev => [...prev, { role: Role.MODEL, content: errorText }]);
+      // 誠實的錯誤提示，不再假設用戶情緒
+      const errorMsg = lang === 'zh' 
+        ? "連線中斷，對話內容未能成功傳輸。請再次嘗試發送，讓我們重新連結。" 
+        : "The analytical bridge was cut off due to a technical failure. Please try sending again.";
+      setMessages(prev => [...prev, { role: Role.MODEL, content: errorMsg }]);
     }
   };
 
@@ -202,70 +203,70 @@ const ChatInterface: React.FC = () => {
   const canSend = (userInput.trim() || selectedImage || recordedAudio) && !isLoading;
 
   return (
-    <div className="flex flex-col h-[94vh] w-full max-w-6xl bg-white rounded-[2rem] shadow-[0_80px_160px_-40px_rgba(0,0,0,0.4)] border-[6px] border-stone-100 overflow-hidden relative">
-      <header className="px-12 py-8 border-b-4 border-stone-50 bg-[#fffafa] flex flex-col items-center">
-        <h1 className="text-6xl font-script font-bold text-[#e11d48]">I'll understand you</h1>
-        <p className="text-black text-[0.9rem] font-black tracking-[0.8em] uppercase mt-4">Psychotherapy Frame</p>
+    <div className="flex flex-col h-[92vh] w-full max-w-5xl bg-white/80 backdrop-blur-lg rounded-3xl shadow-2xl border border-stone-200 overflow-hidden relative transition-all duration-700">
+      <header className="px-10 py-6 border-b border-stone-100 bg-white/40 flex flex-col items-center">
+        <h1 className="text-4xl font-script font-bold text-rose-500">I'll understand you</h1>
+        <p className="text-stone-400 text-[0.7rem] font-bold tracking-[0.5em] uppercase mt-1">Freudian Frame</p>
       </header>
 
-      <main className="flex-1 px-8 md:px-24 py-14 overflow-y-auto white-scrollbar bg-[#fafafa]">
+      <main className="flex-1 px-6 md:px-16 py-10 overflow-y-auto white-scrollbar">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-stone-300 space-y-10">
-            <div className="w-32 h-32 rounded-full border-8 border-stone-100 flex items-center justify-center italic text-7xl font-script">ψ</div>
-            <p className="text-4xl italic font-script text-center max-w-xl text-black">"What comes to your mind?"</p>
-            <p className="text-[1rem] tracking-[1em] uppercase font-black text-stone-400">Speak everything / 開始傾訴</p>
+          <div className="h-full flex flex-col items-center justify-center text-stone-300 space-y-4">
+            <div className="w-16 h-16 rounded-full border border-stone-200 flex items-center justify-center italic text-3xl font-script opacity-60">ψ</div>
+            <p className="text-xl italic font-script text-center max-w-sm">"Whatever enters your mind is a key."</p>
+            <p className="text-[0.6rem] tracking-[0.4em] uppercase font-black opacity-30">Begin Session</p>
           </div>
         )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
         {isLoading && (
-          <div className="flex justify-start mb-14">
-            <div className="px-14 py-8 rounded-[3rem] bg-white border-4 border-[#fff1f2] flex space-x-6 items-center shadow-2xl">
-              <span className="w-4 h-4 bg-[#e11d48] rounded-full animate-bounce"></span>
-              <span className="w-4 h-4 bg-[#e11d48] rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-              <span className="w-4 h-4 bg-[#e11d48] rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+          <div className="flex justify-start mb-8">
+            <div className="px-6 py-4 rounded-3xl bg-white border border-rose-50 flex space-x-2 items-center shadow-sm">
+              <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse"></span>
+              <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse [animation-delay:-0.3s]"></span>
+              <span className="w-2 h-2 bg-rose-400 rounded-full animate-pulse [animation-delay:-0.6s]"></span>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-12 md:px-24 md:pb-20 bg-white border-t-[6px] border-stone-50">
+      <footer className="p-6 md:px-16 md:pb-10 bg-white border-t border-stone-100">
         {(selectedImage || recordedAudio) && (
-          <div className="mb-12 flex gap-10 animate-in slide-in-from-bottom-10 duration-500">
+          <div className="mb-6 flex gap-4 animate-in slide-in-from-bottom-4">
             {selectedImage && (
               <div className="relative">
-                <div className="h-48 w-48 overflow-hidden rounded-[2rem] border-8 border-black shadow-2xl">
+                <div className="h-24 w-24 overflow-hidden rounded-xl border border-stone-200 shadow-md">
                   <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Selected" />
                 </div>
-                <button onClick={() => setSelectedImage(null)} className="absolute -top-6 -right-6 bg-black text-white rounded-full p-4 shadow-2xl hover:bg-rose-600 transition-all active:scale-90">
-                  <XIcon className="h-8 w-8" />
+                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-stone-800 text-white rounded-full p-1.5 shadow-lg hover:bg-rose-500 transition-colors">
+                  <XIcon className="h-4 w-4" />
                 </button>
               </div>
             )}
             {recordedAudio && (
-              <div className="relative flex items-center bg-black text-white px-14 py-8 rounded-[2rem] shadow-2xl border-4 border-stone-800 animate-pulse">
-                <MicIcon className="h-12 w-12 mr-8 text-rose-500" />
-                <span className="text-xl font-black uppercase tracking-[0.2em]">VOICE CAPTURED</span>
-                <button onClick={() => setRecordedAudio(null)} className="absolute -top-6 -right-6 bg-white text-black rounded-full p-4 shadow-2xl border-4 border-black hover:bg-rose-600 hover:text-white transition-all active:scale-90">
-                  <XIcon className="h-8 w-8" />
+              <div className="relative flex items-center bg-stone-50 border border-stone-200 px-6 py-3 rounded-xl shadow-sm">
+                <MicIcon className="h-5 w-5 mr-3 text-rose-500" />
+                <span className="text-xs font-bold text-stone-600 uppercase tracking-widest">Recorded</span>
+                <button onClick={() => setRecordedAudio(null)} className="absolute -top-2 -right-2 bg-stone-800 text-white rounded-full p-1.5 shadow-lg hover:bg-rose-500 transition-colors">
+                  <XIcon className="h-4 w-4" />
                 </button>
               </div>
             )}
           </div>
         )}
 
-        <div className="flex flex-col md:flex-row items-stretch md:items-end gap-10">
-          <div className="flex md:flex-col gap-6">
-            <label className="cursor-pointer bg-white p-7 rounded-[2rem] text-black border-4 border-black hover:bg-black hover:text-white shadow-xl transition-all active:scale-90 flex items-center justify-center">
-              <PaperclipIcon className="h-12 w-12" />
+        <div className="flex flex-col md:flex-row items-stretch md:items-end gap-4">
+          <div className="flex md:flex-row gap-3">
+            <label className="cursor-pointer bg-stone-50 p-4 rounded-2xl text-stone-500 border border-stone-200 hover:bg-stone-100 transition-all flex items-center justify-center">
+              <PaperclipIcon className="h-6 w-6" />
               <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
             </label>
             <button 
               onMouseDown={startRecording} onMouseUp={stopRecording}
               onTouchStart={startRecording} onTouchEnd={stopRecording}
-              className={`p-7 rounded-[2rem] transition-all active:scale-90 flex items-center justify-center shadow-xl border-4 ${isRecording ? 'bg-rose-600 text-white border-rose-900 ring-[16px] ring-rose-100' : 'bg-white text-black border-black hover:bg-black hover:text-white'}`}
+              className={`p-4 rounded-2xl border transition-all flex items-center justify-center ${isRecording ? 'bg-rose-500 text-white border-rose-600' : 'bg-stone-50 text-stone-500 border-stone-200'}`}
             >
-              <MicIcon className="h-12 w-12" />
+              <MicIcon className="h-6 w-6" />
             </button>
           </div>
 
@@ -279,29 +280,18 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Speak from the unconscious..."
-              className="w-full pl-12 pr-32 py-10 bg-stone-50 text-black border-4 border-stone-200 rounded-[3.5rem] resize-none focus:outline-none focus:border-black focus:bg-white transition-all shadow-inner text-[1.5rem] leading-relaxed max-h-[400px] overflow-y-auto white-scrollbar font-bold"
+              placeholder="What comes to mind?..."
+              className="w-full pl-6 pr-16 py-4 bg-stone-50/50 text-stone-800 border border-stone-200 rounded-2xl resize-none focus:outline-none focus:border-rose-300 focus:bg-white transition-all text-[1.05rem] max-h-48 overflow-y-auto white-scrollbar"
               rows={1}
             />
             <button 
               onClick={handleSend}
               disabled={!canSend}
-              className={`absolute right-6 bottom-6 h-24 w-24 flex items-center justify-center rounded-[2.5rem] transition-all shadow-2xl z-10 ${canSend ? 'bg-black text-white hover:bg-rose-600 hover:scale-105 active:scale-95 border-4 border-stone-800' : 'bg-stone-100 text-stone-300 cursor-not-allowed border-4 border-stone-200'}`}
+              className={`absolute right-2 bottom-2 h-12 w-12 flex items-center justify-center rounded-xl transition-all ${canSend ? 'bg-stone-800 text-white hover:bg-rose-500' : 'bg-stone-100 text-stone-300 cursor-not-allowed'}`}
             >
-              <SendIcon className="h-12 w-12" />
+              <SendIcon className="h-5 w-5" />
             </button>
           </div>
-        </div>
-        
-        <div className="mt-12 flex flex-col md:flex-row justify-between items-center px-12 gap-6 opacity-100 text-[1rem] font-black uppercase tracking-[0.5em] text-black">
-           <div className="flex items-center gap-6">
-             <div className="w-4 h-4 rounded-full bg-rose-600"></div>
-             <span>Hold Mic to Record</span>
-           </div>
-           <div className="flex items-center gap-6">
-             <div className="w-4 h-4 rounded-full bg-black"></div>
-             <span>Ctrl + Enter to Send</span>
-           </div>
         </div>
       </footer>
     </div>
