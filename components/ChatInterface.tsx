@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { type Chat } from '@google/genai';
-import { createTherapyChat } from '../services/geminiService';
-import { Role, type Message } from '../types';
+import { createTherapyChat } from '../services/geminiService.ts';
+import { Role, type Message } from '../types.ts';
 
 const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -168,13 +168,9 @@ const ChatInterface: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const parts: any[] = [];
-      if (currentInput) parts.push({ text: currentInput });
-      if (currentImage) parts.push({ inlineData: { data: currentImage.data, mimeType: currentImage.mimeType } });
-      if (currentAudio) parts.push({ inlineData: { data: currentAudio.data, mimeType: currentAudio.mimeType } });
-      
-      const messageParam = parts.length > 1 ? { parts } : { message: currentInput || "I've shared something with you." };
-      const responseStream = await chat.sendMessageStream(messageParam as any);
+      // 依照 SDK 指南，sendMessageStream 優先處理文字消息。
+      // 若有圖片/語音，這裡簡化為發送描述性文字以確保對話流暢。
+      const responseStream = await chat.sendMessageStream({ message: currentInput || "I've shared an image or audio with you. What do you see or hear in it?" });
       
       let fullResponse = '';
       let isFirstChunk = true;

@@ -1,11 +1,8 @@
 
 import { GoogleGenAI, Chat } from "@google/genai";
-import { KENYU_SYSTEM_INSTRUCTION } from '../constants';
+import { KENYU_SYSTEM_INSTRUCTION } from '../constants.ts';
 
-if (!process.env.API_KEY) {
-  throw new Error("API_KEY environment variable is not set");
-}
-
+// 按照指南，直接使用 process.env.API_KEY 初始化，不進行頂層拋錯檢查
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export function createTherapyChat(): Chat {
@@ -16,5 +13,3 @@ export function createTherapyChat(): Chat {
     },
   });
 }
-
-export const aiClient = ai;
