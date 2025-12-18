@@ -1,0 +1,63 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>I'll understand you, if you tell me</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Quicksand:wght@300..700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      body {
+        font-family: 'Quicksand', sans-serif;
+      }
+      .font-script {
+        font-family: 'Caveat', cursive;
+      }
+      
+      /* 全局與輸入框的自定義捲軸樣式 */
+      .white-scrollbar::-webkit-scrollbar {
+        width: 5px;
+      }
+      .white-scrollbar::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      .white-scrollbar::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.4);
+        border-radius: 20px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      .white-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: rgba(255, 255, 255, 0.7);
+      }
+      
+      /* 針對文字輸入框（textarea）特別優化，確保捲軸不干擾視覺 */
+      textarea.white-scrollbar {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+      }
+      
+      /* 確保捲軸不干擾佈局穩定性 */
+      textarea {
+        scrollbar-gutter: stable;
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+  </body>
+</html>

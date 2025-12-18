@@ -1,0 +1,8 @@
+{
+  "name": "I'll understand you, if you tell me",
+  "description": "A warm, bilingual (English/Chinese) space for deep psychoanalytic reflection and understanding.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
