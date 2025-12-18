@@ -59,8 +59,8 @@ const ChatInterface: React.FC = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // 初始化 Chat
-  useEffect(() => {
+  // 初始化 Chat 的函數
+  const initChat = () => {
     try {
       const apiKey = process.env.API_KEY || '';
       if (apiKey) {
@@ -70,10 +70,16 @@ const ChatInterface: React.FC = () => {
           config: { systemInstruction: KENYU_SYSTEM_INSTRUCTION },
         });
         setChat(chatSession);
+        return chatSession;
       }
     } catch (e) {
       console.error("Chat Init Error:", e);
     }
+    return null;
+  };
+
+  useEffect(() => {
+    initChat();
   }, []);
 
   useEffect(() => {
@@ -125,26 +131,39 @@ const ChatInterface: React.FC = () => {
   const handleSubmit = async (e?: React.FormEvent | React.KeyboardEvent) => {
     if (e) e.preventDefault();
     
-    // 只要有文字或圖片或語音，且不在載入中，且聊天已初始化
-    const hasInput = userInput.trim().length > 0 || selectedImage !== null || recordedAudio !== null;
-    if (!chat || isLoading || !hasInput) return;
+    // 確保有輸入內容且不在載入中
+    const trimmedInput = userInput.trim();
+    const hasAnyInput = trimmedInput.length > 0 || selectedImage !== null || recordedAudio !== null;
+    
+    if (isLoading || !hasAnyInput) return;
 
-    const input = userInput.trim();
-    const userMsg = { 
-      role: Role.USER, 
-      content: input || (selectedImage ? "[Sent an image]" : "[Sent a voice note]") 
-    };
+    // 如果 chat 為空，嘗試再次初始化
+    let currentChat = chat;
+    if (!currentChat) {
+      currentChat = initChat();
+    }
+    if (!currentChat) {
+        console.error("Chat session could not be initialized.");
+        return;
+    }
+
+    const displayInput = trimmedInput || (selectedImage ? "[Sent an image]" : "[Sent a voice note]");
+    const userMsg = { role: Role.USER, content: displayInput };
     
     setMessages(prev => [...prev, userMsg]);
+    setIsLoading(true);
     
+    // 清除輸入
     setUserInput('');
     setSelectedImage(null);
     setRecordedAudio(null);
     if(textareaRef.current) textareaRef.current.style.height = 'auto';
-    setIsLoading(true);
 
     try {
-      const responseStream = await chat.sendMessageStream({ message: input || "User shared a visual or auditory reflection. Please interpret." });
+      const responseStream = await currentChat.sendMessageStream({ 
+        message: trimmedInput || "User shared an image or voice reflection. Please provide psychoanalytic insight." 
+      });
+      
       let fullText = '';
       let isFirst = true;
 
@@ -167,12 +186,14 @@ const ChatInterface: React.FC = () => {
       console.error(error);
       setIsLoading(false);
       setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded. Could you try sharing that again? / 我的思緒有些模糊，能請您再試一次嗎？" }]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // 檢查 Ctrl + Enter
-    if (e.key === 'Enter' && e.ctrlKey) {
+    // 檢查 Ctrl + Enter 或 Cmd + Enter (Mac)
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSubmit();
     }
@@ -258,13 +279,13 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type or share... (Ctrl + Enter to send)"
+              placeholder="Type thoughts... (Ctrl + Enter to send)"
               className="w-full pl-6 pr-14 py-4 bg-white/60 text-stone-800 border border-rose-100/50 rounded-[1.5rem] resize-none focus:outline-none focus:border-rose-300 transition-all shadow-inner max-h-40 overflow-y-auto white-scrollbar leading-relaxed"
               rows={1}
             />
             <button 
               type="submit" 
-              disabled={isLoading || !chat || (userInput.trim().length === 0 && !selectedImage && !recordedAudio)} 
+              disabled={isLoading || (!userInput.trim() && !selectedImage && !recordedAudio)} 
               className="absolute right-2 bottom-2 bg-rose-500 text-white rounded-full h-11 w-11 flex items-center justify-center hover:bg-rose-600 disabled:opacity-30 disabled:scale-100 active:scale-90 transition-all shadow-md"
             >
               <SendIcon className="h-5 w-5" />
