@@ -12,52 +12,53 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body {
+        margin: 0;
         font-family: 'Quicksand', sans-serif;
+        overflow: hidden; /* 防止背景滾動 */
       }
       .font-script {
         font-family: 'Caveat', cursive;
       }
       
-      /* 全局與輸入框的自定義捲軸樣式 */
+      /* 統一美化捲軸 */
       .white-scrollbar::-webkit-scrollbar {
-        width: 5px;
+        width: 6px;
       }
       .white-scrollbar::-webkit-scrollbar-track {
         background: transparent;
       }
       .white-scrollbar::-webkit-scrollbar-thumb {
         background: rgba(255, 255, 255, 0.4);
-        border-radius: 20px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
       }
       .white-scrollbar::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.7);
+        background: rgba(255, 255, 255, 0.6);
       }
-      
-      /* 針對文字輸入框（textarea）特別優化，確保捲軸不干擾視覺 */
-      textarea.white-scrollbar {
+
+      /* 隱藏原生捲軸但保留滾動功能 (Firefox/IE) */
+      .white-scrollbar {
         scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
-      }
-      
-      /* 確保捲軸不干擾佈局穩定性 */
-      textarea {
-        scrollbar-gutter: stable;
+        scrollbar-color: rgba(255, 255, 255, 0.4) transparent;
       }
     </style>
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
-  }
-}
-</script>
-</head>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "https://aistudiocdn.com/react@^19.2.0",
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+        "react/": "https://aistudiocdn.com/react@^19.2.0/",
+        "@google/genai": "https://aistudiocdn.com/@google/genai@^1.26.0"
+      }
+    }
+    </script>
+  </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- 初始加載狀態，避免空白畫面 -->
+      <div style="height: 100vh; display: flex; align-items: center; justify-content: center; background: #fff5f5; color: #f43f5e; font-family: sans-serif;">
+        Loading Therapeutic Space...
+      </div>
+    </div>
     <script type="module" src="index.tsx"></script>
   </body>
 </html>
