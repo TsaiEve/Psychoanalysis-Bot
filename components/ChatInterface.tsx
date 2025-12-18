@@ -1,10 +1,10 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GoogleGenAI, type Content, type Part } from '@google/genai';
+import { GoogleGenAI } from '@google/genai';
 import { KENYU_SYSTEM_INSTRUCTION } from '../constants.ts';
 import { Role, type Message } from '../types.ts';
 
-// 圖標組件
+// --- Icons ---
 const SendIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -34,11 +34,12 @@ const XIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// --- Components ---
 const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
   const isUser = message.role === Role.USER;
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-500`}>
-      <div className={`max-w-[85%] lg:max-w-lg px-6 py-4 rounded-[2rem] shadow-sm ${isUser ? 'bg-rose-500 text-white rounded-br-none' : 'bg-white/80 text-stone-800 rounded-bl-none border border-rose-100/50 backdrop-blur-sm'}`}>
+      <div className={`max-w-[85%] lg:max-w-lg px-6 py-4 rounded-[2rem] shadow-sm ${isUser ? 'bg-rose-500 text-white rounded-br-none' : 'bg-white/95 text-stone-800 rounded-bl-none border border-rose-100/50 backdrop-blur-sm'}`}>
         <p className="whitespace-pre-wrap leading-relaxed text-[1.05rem]">{message.content}</p>
       </div>
     </div>
@@ -53,7 +54,7 @@ const ChatInterface: React.FC = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedAudio, setRecordedAudio] = useState<{data: string, mimeType: string} | null>(null);
   
-  const historyRef = useRef<Content[]>([]);
+  const historyRef = useRef<any[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -79,9 +80,10 @@ const ChatInterface: React.FC = () => {
         const base64 = await fileToBase64(file);
         setSelectedImage({ data: base64, mimeType: file.type });
       } catch (err) {
-        console.error("Image conversion error:", err);
+        console.error("Image error:", err);
       }
     }
+    e.target.value = ''; // Reset for re-selection
   };
 
   const startRecording = async () => {
@@ -90,7 +92,9 @@ const ChatInterface: React.FC = () => {
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (e) => e.data.size > 0 && audioChunksRef.current.push(e.data);
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
       mediaRecorder.onstop = async () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         const base64 = await fileToBase64(new File([audioBlob], "audio.webm"));
@@ -100,8 +104,8 @@ const ChatInterface: React.FC = () => {
       mediaRecorder.start();
       setIsRecording(true);
     } catch (err) { 
-      console.error("Microphone error:", err); 
-      alert("Please ensure microphone permissions are granted.");
+      console.error("Mic access error:", err);
+      alert("無法啟動麥克風，請檢查權限設定。");
     }
   };
 
@@ -114,65 +118,64 @@ const ChatInterface: React.FC = () => {
 
   const handleSend = async () => {
     const trimmedInput = userInput.trim();
-    // 判斷是否有任何輸入內容
-    const hasInput = trimmedInput.length > 0 || selectedImage !== null || recordedAudio !== null;
-    if (isLoading || !hasInput) return;
+    const hasImage = !!selectedImage;
+    const hasAudio = !!recordedAudio;
 
-    // 先鎖定載入狀態
+    if (isLoading || (!trimmedInput && !hasImage && !hasAudio)) return;
+
     setIsLoading(true);
 
-    // 準備要發送的零件
-    const parts: Part[] = [];
+    // 介面立即顯示用戶訊息
+    const displayMsg = trimmedInput || (hasImage ? "[Image shared]" : "[Voice note shared]");
+    setMessages(prev => [...prev, { role: Role.USER, content: displayMsg }]);
+
+    // 準備發送給 Gemini 的零件
+    const parts: any[] = [];
     if (trimmedInput) parts.push({ text: trimmedInput });
     if (selectedImage) parts.push({ inlineData: { data: selectedImage.data, mimeType: selectedImage.mimeType } });
     if (recordedAudio) parts.push({ inlineData: { data: recordedAudio.data, mimeType: recordedAudio.mimeType } });
 
-    // 介面顯示內容
-    const displayContent = trimmedInput || (selectedImage ? "[Sent an image]" : "[Sent a voice reflection]");
-    setMessages(prev => [...prev, { role: Role.USER, content: displayContent }]);
-    
-    // 清除輸入狀態（在 API 調用前清除以提供即時回饋）
-    const tempInput = trimmedInput;
-    const tempImage = selectedImage;
-    const tempAudio = recordedAudio;
-    
+    // 暫存並清空輸入狀態
+    const currentParts = [...parts];
     setUserInput('');
     setSelectedImage(null);
     setRecordedAudio(null);
-    if(textareaRef.current) textareaRef.current.style.height = 'auto';
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
       
-      // 構建包含歷史紀錄的 contents 數組
-      const currentContents: Content[] = [
+      const contents = [
         ...historyRef.current,
-        { role: 'user', parts }
+        { role: 'user', parts: currentParts }
       ];
 
       const responseStream = await ai.models.generateContentStream({
         model: 'gemini-3-flash-preview',
-        contents: currentContents,
+        contents: contents,
         config: {
           systemInstruction: KENYU_SYSTEM_INSTRUCTION
         }
       });
 
       let fullText = '';
-      let isFirstChunk = true;
+      let isFirst = true;
 
       for await (const chunk of responseStream) {
         const chunkText = chunk.text || "";
         fullText += chunkText;
         
-        if (isFirstChunk) {
-          setIsLoading(false); // 收到第一個塊後關閉 Loading 動畫
-          isFirstChunk = false;
+        if (isFirst) {
+          setIsLoading(false);
+          isFirst = false;
           setMessages(prev => [...prev, { role: Role.MODEL, content: fullText }]);
         } else {
           setMessages(prev => {
             const next = [...prev];
-            next[next.length - 1] = { role: Role.MODEL, content: fullText };
+            const lastMsg = next[next.length - 1];
+            if (lastMsg && lastMsg.role === Role.MODEL) {
+              next[next.length - 1] = { ...lastMsg, content: fullText };
+            }
             return next;
           });
         }
@@ -180,78 +183,77 @@ const ChatInterface: React.FC = () => {
 
       // 更新歷史紀錄
       historyRef.current = [
-        ...currentContents,
+        ...contents,
         { role: 'model', parts: [{ text: fullText }] }
       ];
 
     } catch (error) {
-      console.error("API Error:", error);
-      setMessages(prev => [...prev, { role: Role.MODEL, content: "My insight was clouded by a technical shadow. Could you try sharing that again? / 我的思緒受到了技術層面的干擾，能請您再試一次嗎？" }]);
-      // 發生錯誤時嘗試恢復用戶輸入（選擇性）
-      setUserInput(tempInput);
-      setSelectedImage(tempImage);
-      setRecordedAudio(tempAudio);
+      console.error("API Call Error:", error);
+      setIsLoading(false);
+      setMessages(prev => [...prev, { 
+        role: Role.MODEL, 
+        content: "I'm sorry, I couldn't process that insight right now. Could you share your thoughts again? / 抱歉，我現在無法解析您的思緒。能請您再試一次嗎？" 
+      }]);
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // 支援 Ctrl + Enter 或 Cmd + Enter (Mac)
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  // 用於按鈕禁用的判斷條件
-  const isButtonDisabled = isLoading || (!userInput.trim() && !selectedImage && !recordedAudio);
+  const isButtonActive = (userInput.trim().length > 0 || !!selectedImage || !!recordedAudio) && !isLoading;
 
   return (
-    <div className="flex flex-col h-[90vh] w-full max-w-4xl bg-white/40 backdrop-blur-2xl rounded-[2.5rem] shadow-[0_20px_50px_rgba(255,182,193,0.3)] border border-white/60 overflow-hidden">
-      <header className="px-8 py-6 text-center border-b border-rose-100/30">
-        <h1 className="text-3xl font-script font-bold text-rose-600 tracking-wide">I'll understand you</h1>
-        <p className="text-stone-500 text-sm mt-1 font-medium">Psychoanalytic Space / 精神分析空間</p>
+    <div className="flex flex-col h-[90vh] w-full max-w-4xl bg-white/40 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_30px_70px_-15px_rgba(251,113,133,0.3)] border border-white/60 overflow-hidden relative">
+      <header className="px-8 py-7 text-center border-b border-rose-100/30 bg-white/20 backdrop-blur-md">
+        <h1 className="text-3xl font-script font-bold text-rose-600/90 tracking-wide">I'll understand you</h1>
+        <p className="text-stone-500 text-[0.65rem] mt-2 font-bold tracking-[0.35em] uppercase opacity-70">Deep Psychoanalytic Reflection</p>
       </header>
 
-      <main className="flex-1 px-4 lg:px-12 py-6 overflow-y-auto space-y-6 white-scrollbar">
+      <main className="flex-1 px-6 lg:px-14 py-8 overflow-y-auto space-y-7 white-scrollbar">
         {messages.length === 0 && (
-            <div className="h-full flex flex-col items-center justify-center text-stone-400/60 space-y-4 animate-pulse">
-                <p className="text-lg italic font-script">"The dream is the royal road to the unconscious."</p>
-                <p className="text-xs tracking-[0.2em] uppercase font-bold">Speak your mind / 暢所欲言</p>
+            <div className="h-full flex flex-col items-center justify-center text-stone-400/40 space-y-5 animate-pulse">
+                <div className="w-14 h-14 rounded-full border border-stone-200/40 flex items-center justify-center italic text-xl font-script">ψ</div>
+                <p className="text-lg italic font-script text-center max-w-xs">"Thoughts are but seeds of the unspoken."</p>
+                <p className="text-[0.6rem] tracking-[0.4em] uppercase font-black">Begin your story / 開始傾訴</p>
             </div>
         )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
-        {isLoading && (
+        {isLoading && messages[messages.length - 1]?.role !== Role.MODEL && (
           <div className="flex justify-start">
-            <div className="px-6 py-4 rounded-[2rem] bg-white/80 border border-rose-100/50 flex space-x-2 shadow-sm">
-              <span className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce"></span>
-              <span className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
-              <span className="w-1.5 h-1.5 bg-rose-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+            <div className="px-7 py-4 rounded-[2rem] bg-white/70 border border-rose-100/50 flex space-x-2.5 items-center shadow-sm">
+              <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce"></span>
+              <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1.5 h-1.5 bg-rose-300 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-6 lg:px-12 lg:pb-10 bg-white/20">
+      <footer className="p-7 lg:px-14 lg:pb-10 bg-white/10 border-t border-rose-100/10">
          {(selectedImage || recordedAudio) && (
-          <div className="mb-4 flex gap-4 animate-in slide-in-from-bottom-2">
+          <div className="mb-5 flex gap-4 animate-in slide-in-from-bottom-3 duration-300">
             {selectedImage && (
               <div className="relative group">
-                <div className="h-20 w-20 overflow-hidden rounded-2xl border-2 border-rose-200 shadow-lg transition-transform hover:scale-105">
+                <div className="h-20 w-20 overflow-hidden rounded-2xl border-2 border-white shadow-lg transition-transform hover:scale-105">
                     <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Selected" />
                 </div>
-                <button onClick={() => setSelectedImage(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 transition-colors">
+                <button onClick={() => setSelectedImage(null)} className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 active:scale-90 transition-all">
                   <XIcon className="h-3 w-3" />
                 </button>
               </div>
             )}
             {recordedAudio && (
-              <div className="relative flex items-center bg-rose-50 px-5 py-3 rounded-2xl border border-rose-100 shadow-md">
-                <MicIcon className="h-5 w-5 text-rose-500 mr-3" />
-                <span className="text-sm text-rose-700 font-bold">Voice Captured</span>
-                <button onClick={() => setRecordedAudio(null)} className="absolute -top-2 -right-2 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 transition-colors">
+              <div className="relative flex items-center bg-white/80 px-5 py-3 rounded-2xl border border-rose-50 shadow-lg animate-pulse">
+                <MicIcon className="h-4 w-4 text-rose-500 mr-2.5" />
+                <span className="text-xs text-rose-700 font-bold uppercase tracking-widest">Audio Loaded</span>
+                <button onClick={() => setRecordedAudio(null)} className="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full p-1.5 shadow-xl hover:bg-rose-600 active:scale-90 transition-all">
                   <XIcon className="h-3 w-3" />
                 </button>
               </div>
@@ -259,9 +261,9 @@ const ChatInterface: React.FC = () => {
           </div>
         )}
 
-        <div className="relative flex items-end gap-3">
-          <div className="flex flex-col gap-3">
-             <label className="cursor-pointer bg-white/70 p-3.5 rounded-full border border-rose-100/50 hover:bg-rose-50 shadow-sm transition-all active:scale-90">
+        <div className="relative flex items-end gap-3.5">
+          <div className="flex flex-col gap-3.5">
+             <label className="cursor-pointer bg-white/70 p-3.5 rounded-full border border-rose-100/40 hover:bg-white shadow-sm transition-all active:scale-90">
                 <PaperclipIcon className="h-5 w-5 text-rose-400" />
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
              </label>
@@ -271,14 +273,13 @@ const ChatInterface: React.FC = () => {
                 onMouseUp={stopRecording} 
                 onTouchStart={startRecording} 
                 onTouchEnd={stopRecording} 
-                className={`p-3.5 rounded-full border border-rose-100/50 shadow-sm transition-all active:scale-90 ${isRecording ? 'bg-rose-500 text-white ring-4 ring-rose-200' : 'bg-white/70 text-rose-400'}`}
-                title="Hold to record"
+                className={`p-3.5 rounded-full border border-rose-100/40 shadow-sm transition-all active:scale-90 ${isRecording ? 'bg-rose-500 text-white ring-4 ring-rose-100' : 'bg-white/70 text-rose-400 hover:bg-white'}`}
              >
                 <MicIcon className="h-5 w-5" />
               </button>
           </div>
 
-          <div className="relative flex-1">
+          <div className="relative flex-1 group">
             <textarea
               ref={textareaRef}
               value={userInput}
@@ -288,21 +289,26 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="What comes to mind? (Ctrl + Enter to send)"
-              className="w-full pl-6 pr-16 py-4 bg-white/70 text-stone-800 border border-rose-100/50 rounded-[1.8rem] resize-none focus:outline-none focus:ring-2 focus:ring-rose-200 focus:border-rose-300 transition-all shadow-inner max-h-40 overflow-y-auto white-scrollbar leading-relaxed text-[1.05rem]"
+              placeholder="Speak your mind... (Ctrl+Enter to send)"
+              className="w-full pl-6 pr-16 py-4.5 bg-white/80 text-stone-800 border border-rose-100/20 rounded-[1.8rem] resize-none focus:outline-none focus:ring-4 focus:ring-rose-100/30 focus:border-rose-200 transition-all shadow-inner max-h-44 overflow-y-auto white-scrollbar leading-relaxed text-[1.05rem]"
               rows={1}
             />
             <button 
               onClick={handleSend}
-              disabled={isButtonDisabled} 
-              className={`absolute right-2.5 bottom-2.5 rounded-full h-11 w-11 flex items-center justify-center transition-all shadow-md z-10 ${isButtonDisabled ? 'bg-stone-200 text-stone-400 opacity-50 cursor-not-allowed' : 'bg-rose-500 text-white hover:bg-rose-600 hover:scale-105 active:scale-95'}`}
+              disabled={!isButtonActive} 
+              className={`absolute right-2.5 bottom-2.5 rounded-full h-11 w-11 flex items-center justify-center transition-all shadow-lg z-10 ${isButtonActive ? 'bg-rose-500 text-white hover:bg-rose-600 hover:scale-105 active:scale-90' : 'bg-stone-100 text-stone-300 cursor-not-allowed opacity-50'}`}
             >
-              <SendIcon className="h-5 w-5" />
+              <SendIcon className="h-5.5 w-5.5" />
             </button>
           </div>
         </div>
-        <div className="mt-4 text-[0.65rem] text-stone-400 text-center uppercase tracking-[0.25em] font-black opacity-40">
-            Press Ctrl + Enter to communicate
+        <div className="mt-4 flex justify-between items-center px-4 opacity-40">
+           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">
+              Hold to record voice
+           </div>
+           <div className="text-[0.6rem] text-stone-400 uppercase tracking-[0.3em] font-black">
+              Ctrl + Enter to send
+           </div>
         </div>
       </footer>
     </div>
