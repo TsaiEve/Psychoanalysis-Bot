@@ -1,11 +1,12 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { GoogleGenAI, HarmCategory, HarmBlockThreshold, type Content, type Part } from '@google/genai';
 import { KENYU_SYSTEM_INSTRUCTION } from '../constants.ts';
 import { Role, type Message } from '../types.ts';
 
-// --- Sharp, High-Contrast Icons ---
+// --- Professional High-Contrast Icons ---
 const SendIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" />
   </svg>
 );
@@ -35,13 +36,13 @@ const XIcon = ({ className }: { className?: string }) => (
 const ChatMessage: React.FC<{ message: Message }> = ({ message }) => {
   const isUser = message.role === Role.USER;
   return (
-    <div className={`flex w-full mb-8 ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-[90%] md:max-w-[80%] px-6 py-4 rounded-3xl shadow-lg border ${
+    <div className={`flex w-full mb-10 ${isUser ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-4 duration-300`}>
+      <div className={`max-w-[85%] md:max-w-[75%] px-7 py-5 rounded-[2rem] shadow-xl border-2 ${
         isUser 
           ? 'bg-rose-600 text-white border-rose-700 rounded-br-none' 
-          : 'bg-white text-stone-900 border-stone-200 rounded-bl-none'
+          : 'bg-white text-stone-900 border-stone-100 rounded-bl-none'
       }`}>
-        <p className="whitespace-pre-wrap leading-relaxed text-[1.1rem] font-medium">{message.content}</p>
+        <p className="whitespace-pre-wrap leading-relaxed text-[1.1rem] font-medium tracking-tight">{message.content}</p>
       </div>
     </div>
   );
@@ -104,7 +105,7 @@ const ChatInterface: React.FC = () => {
       };
       mediaRecorder.start();
       setIsRecording(true);
-    } catch (err) { alert("Mic required / 需要麥克風權限"); }
+    } catch (err) { alert("Mic required / 需麥克風權限"); }
   };
 
   const stopRecording = () => {
@@ -121,7 +122,7 @@ const ChatInterface: React.FC = () => {
     const lang = detectLanguage(trimmed || "");
     setIsLoading(true);
 
-    const displayContent = trimmed || (selectedImage ? "[Image provided]" : "[Voice shared]");
+    const displayContent = trimmed || (selectedImage ? "[分享了視覺意象]" : "[分享了語音碎片]");
     setMessages(prev => [...prev, { role: Role.USER, content: displayContent }]);
 
     const parts: Part[] = [];
@@ -136,13 +137,12 @@ const ChatInterface: React.FC = () => {
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
     try {
-      // Fix: Created a new instance here to ensure it uses the latest configured API key.
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const contents = [...historyRef.current, { role: 'user', parts: currentParts }];
 
-      // Fix: Used HarmCategory and HarmBlockThreshold enums to resolve TypeScript literal errors.
+      // 使用 Gemini 3 Pro 以獲得更精確的分析與更高的安全性容錯
       const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-pro-preview',
         contents,
         config: { 
           systemInstruction: KENYU_SYSTEM_INSTRUCTION,
@@ -159,7 +159,6 @@ const ChatInterface: React.FC = () => {
       let isFirstChunk = true;
 
       for await (const chunk of responseStream) {
-        // Fix: Use property access for .text as per guidelines.
         const text = chunk.text || "";
         fullText += text;
         if (isFirstChunk) {
@@ -181,16 +180,16 @@ const ChatInterface: React.FC = () => {
       if (fullText) {
         historyRef.current = [...contents, { role: 'model', parts: [{ text: fullText }] }];
       } else {
-        throw new Error("No response content");
+        throw new Error("Safety Block or Empty Output");
       }
     } catch (error) {
-      console.error(error);
+      console.error("Analysis Interrupted:", error);
       setIsLoading(false);
-      // Therapeutic error handling - make it part of the session
-      const fallbackMsg = lang === 'zh' 
-        ? "我在您的言論中感受到了巨大的衝擊，這股力量似乎暫時遮蔽了我的視線。請再對我傾訴一次，讓我們一起看清這股憤怒或防衛。" 
-        : "I feel a profound intensity in your words, a force that momentarily clouded my interpretation. Please, speak to me again so we can explore this depth together.";
-      setMessages(prev => [...prev, { role: Role.MODEL, content: fallbackMsg }]);
+      // 以分析師的身分化解技術報錯
+      const fallback = lang === 'zh' 
+        ? "您的憤怒帶有極強的能量，這股爆發力甚至讓目前的對話空間感到一陣震盪。請稍微平復，再次嘗試對我述說，我會在這裡承接住這股情緒。" 
+        : "The intensity of your affect has caused a momentary rupture in our analytic space. I am here to hold this tension with you. Please, speak to me once more.";
+      setMessages(prev => [...prev, { role: Role.MODEL, content: fallback }]);
     }
   };
 
@@ -204,24 +203,24 @@ const ChatInterface: React.FC = () => {
   const canSend = (userInput.trim() || selectedImage || recordedAudio) && !isLoading;
 
   return (
-    <div className="flex flex-col h-[95vh] w-full max-w-5xl bg-white rounded-3xl shadow-2xl border border-stone-200 overflow-hidden">
-      <header className="px-8 py-6 border-b-2 border-rose-50 bg-stone-50 flex flex-col items-center">
-        <h1 className="text-4xl font-script font-bold text-rose-600">I'll understand you</h1>
-        <p className="text-stone-500 text-[0.8rem] font-bold tracking-[0.4em] uppercase mt-1">Psychoanalytic Encounter</p>
+    <div className="flex flex-col h-[94vh] w-full max-w-5xl bg-stone-50/10 backdrop-blur-xl rounded-[2.5rem] shadow-[0_50px_100px_-20px_rgba(0,0,0,0.2)] border border-white/50 overflow-hidden relative">
+      <header className="px-10 py-7 border-b border-stone-200 bg-white/60 flex flex-col items-center">
+        <h1 className="text-4xl font-script font-bold text-rose-600 drop-shadow-sm">I'll understand you</h1>
+        <p className="text-stone-500 text-[0.75rem] font-bold tracking-[0.6em] uppercase mt-2 opacity-80">Freudian analytic frame</p>
       </header>
 
-      <main className="flex-1 px-4 md:px-12 py-10 overflow-y-auto white-scrollbar bg-stone-50/20">
+      <main className="flex-1 px-6 md:px-20 py-10 overflow-y-auto white-scrollbar">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-stone-400 space-y-4">
-            <div className="w-20 h-20 rounded-full border-4 border-stone-200 flex items-center justify-center italic text-4xl font-script">ψ</div>
-            <p className="text-2xl italic font-script">"Every silence tells a story."</p>
-            <p className="text-[0.7rem] tracking-widest font-black uppercase opacity-60">Speak your mind / 開始傾訴</p>
+          <div className="h-full flex flex-col items-center justify-center text-stone-400 space-y-6 animate-pulse">
+            <div className="w-20 h-20 rounded-full border-2 border-stone-300 flex items-center justify-center italic text-4xl font-script opacity-40">ψ</div>
+            <p className="text-2xl italic font-script text-center max-w-md">"The unconscious is structured like a language."</p>
+            <p className="text-[0.7rem] tracking-[0.5em] uppercase font-black opacity-30">Begin the session / 開始潛意識探索</p>
           </div>
         )}
         {messages.map((msg, i) => <ChatMessage key={i} message={msg} />)}
         {isLoading && (
-          <div className="flex justify-start mb-6">
-            <div className="px-8 py-5 rounded-3xl bg-white border border-stone-200 flex space-x-3 items-center shadow-md">
+          <div className="flex justify-start mb-10">
+            <div className="px-10 py-6 rounded-[2rem] bg-white border border-rose-50 flex space-x-4 items-center shadow-xl">
               <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce"></span>
               <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
               <span className="w-2.5 h-2.5 bg-rose-500 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
@@ -231,25 +230,25 @@ const ChatInterface: React.FC = () => {
         <div ref={messagesEndRef} />
       </main>
 
-      <footer className="p-6 md:px-12 md:pb-12 bg-white border-t-2 border-stone-100 shadow-[0_-10px_40px_rgba(0,0,0,0.03)]">
+      <footer className="p-8 md:px-16 md:pb-14 bg-white/80 border-t border-stone-200 shadow-2xl">
         {(selectedImage || recordedAudio) && (
-          <div className="mb-6 flex gap-6 animate-in slide-in-from-bottom-2">
+          <div className="mb-8 flex gap-6 animate-in slide-in-from-bottom-5 duration-300">
             {selectedImage && (
-              <div className="relative">
-                <div className="h-28 w-28 overflow-hidden rounded-2xl border-4 border-rose-100 shadow-xl">
+              <div className="relative group">
+                <div className="h-32 w-32 overflow-hidden rounded-2xl border-4 border-white shadow-2xl ring-2 ring-rose-50">
                   <img src={`data:${selectedImage.mimeType};base64,${selectedImage.data}`} className="h-full w-full object-cover" alt="Selected" />
                 </div>
-                <button onClick={() => setSelectedImage(null)} className="absolute -top-3 -right-3 bg-stone-900 text-white rounded-full p-2 shadow-2xl hover:bg-rose-600 transition-colors">
-                  <XIcon className="h-4 w-4" />
+                <button onClick={() => setSelectedImage(null)} className="absolute -top-3 -right-3 bg-stone-900 text-white rounded-full p-2.5 shadow-2xl hover:bg-rose-600 transition-all active:scale-90">
+                  <XIcon className="h-5 w-5" />
                 </button>
               </div>
             )}
             {recordedAudio && (
-              <div className="relative flex items-center bg-rose-600 text-white px-8 py-4 rounded-2xl shadow-xl animate-pulse">
-                <MicIcon className="h-6 w-6 mr-4" />
-                <span className="text-sm font-black uppercase tracking-tighter">Audio Captured</span>
-                <button onClick={() => setRecordedAudio(null)} className="absolute -top-3 -right-3 bg-stone-900 text-white rounded-full p-2 shadow-2xl hover:bg-rose-600 transition-colors">
-                  <XIcon className="h-4 w-4" />
+              <div className="relative flex items-center bg-rose-600 text-white px-10 py-5 rounded-2xl shadow-2xl ring-4 ring-rose-50 animate-pulse">
+                <MicIcon className="h-8 w-8 mr-5" />
+                <span className="text-md font-black uppercase tracking-widest">Affect Captured</span>
+                <button onClick={() => setRecordedAudio(null)} className="absolute -top-3 -right-3 bg-stone-900 text-white rounded-full p-2.5 shadow-2xl hover:bg-rose-600 transition-all active:scale-90">
+                  <XIcon className="h-5 w-5" />
                 </button>
               </div>
             )}
@@ -258,20 +257,20 @@ const ChatInterface: React.FC = () => {
 
         <div className="flex flex-col md:flex-row items-stretch md:items-end gap-6">
           <div className="flex md:flex-col gap-4">
-            <label className="flex-1 md:flex-none cursor-pointer bg-stone-100 p-5 rounded-2xl border-2 border-stone-200 text-stone-800 hover:bg-stone-200 transition-all active:scale-95 flex items-center justify-center">
-              <PaperclipIcon className="h-7 w-7" />
+            <label className="cursor-pointer bg-stone-100 p-5 rounded-2xl border-2 border-stone-200 text-stone-700 hover:bg-rose-600 hover:text-white hover:border-rose-600 shadow-md transition-all active:scale-90 flex items-center justify-center">
+              <PaperclipIcon className="h-8 w-8" />
               <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
             </label>
             <button 
               onMouseDown={startRecording} onMouseUp={stopRecording}
               onTouchStart={startRecording} onTouchEnd={stopRecording}
-              className={`flex-1 md:flex-none p-5 rounded-2xl border-2 transition-all active:scale-95 flex items-center justify-center ${isRecording ? 'bg-rose-600 text-white border-rose-700 ring-8 ring-rose-100' : 'bg-stone-100 text-stone-800 border-stone-200 hover:bg-stone-200'}`}
+              className={`p-5 rounded-2xl border-2 transition-all active:scale-90 flex items-center justify-center shadow-md ${isRecording ? 'bg-rose-600 text-white border-rose-700 ring-8 ring-rose-100' : 'bg-stone-100 text-stone-700 border-stone-200 hover:bg-rose-600 hover:text-white hover:border-rose-600'}`}
             >
-              <MicIcon className="h-7 w-7" />
+              <MicIcon className="h-8 w-8" />
             </button>
           </div>
 
-          <div className="relative flex-1 flex items-center">
+          <div className="relative flex-1 group">
             <textarea
               ref={textareaRef}
               value={userInput}
@@ -281,28 +280,28 @@ const ChatInterface: React.FC = () => {
                 e.target.style.height = `${e.target.scrollHeight}px`;
               }}
               onKeyDown={handleKeyDown}
-              placeholder="What comes to mind?..."
-              className="w-full pl-8 pr-20 py-6 bg-stone-50 text-stone-900 border-2 border-stone-200 rounded-3xl resize-none focus:outline-none focus:border-rose-400 focus:bg-white transition-all shadow-inner text-[1.15rem] leading-relaxed max-h-60 overflow-y-auto white-scrollbar"
+              placeholder="What comes to mind without censorship?..."
+              className="w-full pl-8 pr-24 py-7 bg-stone-50/50 text-stone-900 border-2 border-stone-200 rounded-[2.5rem] resize-none focus:outline-none focus:border-rose-500 focus:bg-white transition-all shadow-inner text-[1.2rem] leading-relaxed max-h-64 overflow-y-auto white-scrollbar"
               rows={1}
             />
             <button 
               onClick={handleSend}
               disabled={!canSend}
-              className={`absolute right-4 bottom-4 h-14 w-14 flex items-center justify-center rounded-2xl transition-all shadow-xl z-10 ${canSend ? 'bg-rose-600 text-white hover:bg-rose-700 hover:scale-105 active:scale-95' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
+              className={`absolute right-4 bottom-4 h-16 w-16 flex items-center justify-center rounded-2xl transition-all shadow-2xl z-10 ${canSend ? 'bg-rose-600 text-white hover:bg-rose-700 hover:scale-105 active:scale-95' : 'bg-stone-200 text-stone-400 cursor-not-allowed'}`}
             >
-              <SendIcon className="h-7 w-7" />
+              <SendIcon className="h-8 w-8" />
             </button>
           </div>
         </div>
         
-        <div className="mt-6 flex flex-col md:flex-row justify-between items-center px-4 gap-2 opacity-60 text-[0.75rem] font-black uppercase tracking-[0.2em] text-stone-500">
-           <div className="flex items-center gap-2">
-             <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-             <span>Hold Mic to record</span>
+        <div className="mt-8 flex flex-col md:flex-row justify-between items-center px-6 gap-3 opacity-50 text-[0.8rem] font-black uppercase tracking-[0.3em] text-stone-600">
+           <div className="flex items-center gap-3">
+             <div className="w-2.5 h-2.5 rounded-full bg-rose-500"></div>
+             <span>Hold to Speak</span>
            </div>
-           <div className="flex items-center gap-2">
-             <div className="w-2 h-2 rounded-full bg-stone-400"></div>
-             <span>Ctrl + Enter to send</span>
+           <div className="flex items-center gap-3">
+             <div className="w-2.5 h-2.5 rounded-full bg-stone-400"></div>
+             <span>Ctrl + Enter to Analysis</span>
            </div>
         </div>
       </footer>
